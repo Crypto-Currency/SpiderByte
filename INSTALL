@@ -1,0 +1,9 @@
+Building SpiderByte
+
+See doc/readme-qt.rst for instructions on building SpiderByte QT,
+the intended-for-end-users, nice-graphical-interface, reference
+implementation of SpiderByte.
+
+See doc/build-*.txt for instructions on building spiderbyted,
+the intended-for-services, no-graphical-interface, reference
+implementation of SpiderByte.
