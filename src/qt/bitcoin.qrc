@@ -54,10 +54,14 @@
     </qresource>
     <qresource prefix="/images">
         <file alias="about">res/images/about.png</file>
-        <file alias="startup1">res/images/splash1.png</file>
-        <file alias="startup2">res/images/splash2.png</file>
-        <file alias="startup3">res/images/splash3.png</file>
-        <file alias="startup4">res/images/splash4.png</file>
+        <file alias="startup1">res/images/splash-01.png</file>
+        <file alias="startup2">res/images/splash-02.png</file>
+        <file alias="startup3">res/images/splash-03.png</file>
+        <file alias="startup4">res/images/splash-04.png</file>
+        <file alias="startup5">res/images/splash-05.png</file>
+        <file alias="startup6">res/images/splash-06.png</file>
+        <file alias="startup7">res/images/splash-07.png</file>
+        <file alias="startup8">res/images/splash-08.png</file>
 		<file alias="background">res/images/background.png</file>
         <file alias="backg">res/images/wallet.png</file>
     </qresource>

@@ -14,7 +14,7 @@ Splash::Splash(QWidget *parent) :
 
 // adds a timer that randomly replace background
 	timer = new QTimer(this);
-	timer->setInterval(59000);
+	timer->setInterval(29000);
 	connect(timer, SIGNAL(timeout()), this, SLOT(updateTimer()));
 	timer->start();
 
@@ -61,7 +61,7 @@ void Splash::updateTimer()
 void Splash::setRandomBackground()
 {
 // sets a random background each time is called
-	int v = (time(NULL)) % 4 + 1;
+	int v = (time(NULL)) % 8 + 1;
 	char s[32];
 	sprintf(s, ":/images/startup%d", v);
 	QPixmap bkgnd(s);
