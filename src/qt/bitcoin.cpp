@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
     Q_INIT_RESOURCE(bitcoin);
 
 // by Simone: still allow compiling even with QT4
-#if QT_VERSION > 0x050000
+#if QT_VERSION >= 0x050F00
 	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 
