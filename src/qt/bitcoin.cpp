@@ -176,7 +176,9 @@ int main(int argc, char *argv[])
 
     Q_INIT_RESOURCE(bitcoin);
 
+#if QT_VERSION > 0x040900
 	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
 	QApplication::setStyle(QStyleFactory::create("Fusion"));
 
     QApplication app(argc, argv);
