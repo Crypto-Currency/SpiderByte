@@ -4,6 +4,7 @@
 - Added conversion from LitecoinPlus data folder into SpiderByte data folder, it does that first boot
 - Added DNSSEED to new site already
 - Added support for SSL 3
+- BUGFIX: regression introduced in 5.1.2.2, it won't compile anymore on QT4, added version check for HiDpi settings
 
 
 ***** Version 5.1.2.2 (RELEASE)
