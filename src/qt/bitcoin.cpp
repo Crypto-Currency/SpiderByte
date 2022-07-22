@@ -16,11 +16,15 @@
 
 #include <stdint.h>
 
+#if QT_VERSION < 0x060000
 #include <QDesktopWidget>
+#include <QTextCodec>
+#include <QRegExp>
+#endif
+
 #include <QApplication>
 #include <QStyleFactory>
 #include <QMessageBox>
-#include <QTextCodec>
 #include <QLocale>
 #include <QTranslator>
 #include <QSplashScreen>
@@ -28,7 +32,6 @@
 #include <QEvent>
 #include <QCloseEvent>
 #include <QLabel>
-#include <QRegExp>
 #include <QTextTable>
 //#include <QTextCursor>
 #include <QVBoxLayout>
@@ -69,7 +72,14 @@ ShutdownWindow::ShutdownWindow(QWidget *parent, Qt::WindowFlags f):
 void ShutdownWindow::showShutdownWindow()
 {
     // Center shutdown window in the screen
+
+#if QT_VERSION < 0x060000
 	QRect screenGeometry = QApplication::desktop()->screenGeometry();
+#else
+	QScreen* screen = QGuiApplication::primaryScreen();
+	QRect screenGeometry = screen->availableGeometry();
+#endif
+
 	int x = (screenGeometry.width() - width()) / 2;
 	int y = (screenGeometry.height() - height()) / 2;
 	move(x, y);
