@@ -1,4 +1,4 @@
-<b>SpiderByte V6.0.0.1</b> <br>
+<b>SpiderByte V6.1.0.1</b> <br>
 <br>
 For detailed changes list, see file changelog.txt
 <br>
