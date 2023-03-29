@@ -48,6 +48,7 @@ static proxyType proxyInfo[NET_MAX];
 static proxyType nameproxyInfo;
 static CCriticalSection cs_proxyInfos;
 int nConnectTimeout = 5000;
+char nTotalTimeouts;
 bool fNameLookup = false;
 
 static const unsigned char pchIPv4[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
@@ -392,11 +393,18 @@ bool static ConnectSocketDirectly(const CService &addrConnect, SOCKET& hSocketRe
             fd_set fdset;
             FD_ZERO(&fdset);
             FD_SET(hSocket, &fdset);
-            int nRet = select(hSocket + 1, NULL, &fdset, NULL, &timeout);
+            int nRet = 0;
+            if (!fShutdown) {
+                nTotalTimeouts++;
+                nRet = select(hSocket + 1, NULL, &fdset, NULL, &timeout);
+                nTotalTimeouts--;
+            }
             if (nRet == 0)
             {
+                if (!fShutdown) {
+                    CloseSocket(hSocket);
+                }
                 printf("connection timeout\n");
-                CloseSocket(hSocket);
                 return false;
             }
             if (nRet == SOCKET_ERROR)

@@ -94,33 +94,41 @@ void Shutdown(void* parg)
         delete pwalletMain;
         NewThread(ExitTimeout, NULL);
         Sleep(50);
-        printf("SpiderByte exited\n\n");
+
+    // by Simone: we wait all the pending connections timeout to cancel out (this number shall go to zero)
+        if (nTotalTimeouts > 0) {
+            printf("Number of pending connection timeouts: %d\n", nTotalTimeouts);
+            while (nTotalTimeouts > 0) {
+                Sleep(100);
+            }
+        }
         fExit = true;
-		fShutdown = false;
+	fShutdown = false;
 
 	// by Simone: if the fStartOver flag is raised, we dump all the blockchain files securely after the database is close and detached
-		if (fStartOver)
+	if (fStartOver)
+	{
+		boost::filesystem::path p = GetDataDir();
+		boost::filesystem::directory_iterator end_itr;
+		for (boost::filesystem::directory_iterator itr(p / "database"); itr != end_itr; ++itr)
 		{
-			boost::filesystem::path p = GetDataDir();
-			boost::filesystem::directory_iterator end_itr;
-			for (boost::filesystem::directory_iterator itr(p / "database"); itr != end_itr; ++itr)
-			{
-				boost::filesystem::remove(*itr);
-			}
-			boost::filesystem::remove(p / "database");
-			for (int i = 1; ; i++)
-			{
-				char s[64];
-				sprintf(s, "blk%04d.dat", i);
-				if (!boost::filesystem::exists(p / s))
-				{
-					break;
-				}
-				boost::filesystem::remove(p / s);
-			}
-			boost::filesystem::remove(p / "blkindex.dat");
-			boost::filesystem::remove(p / "txindex.dat");
+			boost::filesystem::remove(*itr);
 		}
+		boost::filesystem::remove(p / "database");
+		for (int i = 1; ; i++)
+		{
+			char s[64];
+			sprintf(s, "blk%04d.dat", i);
+			if (!boost::filesystem::exists(p / s))
+			{
+				break;
+			}
+			boost::filesystem::remove(p / s);
+		}
+		boost::filesystem::remove(p / "blkindex.dat");
+		boost::filesystem::remove(p / "txindex.dat");
+	}
+        printf("SpiderByte exited\n");
 
 #ifndef QT_GUI
         // ensure non-UI client gets exited here, but let Bitcoin-Qt reach 'return 0;' in bitcoin.cpp
@@ -677,6 +685,7 @@ bool AppInit2()
     }
 
     // ********************************************************* Step 6: network initialization
+    nTotalTimeouts = 0;
 
     RegisterNodeSignals(GetNodeSignals());
 

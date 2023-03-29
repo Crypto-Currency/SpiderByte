@@ -230,8 +230,10 @@ bool CWallet::SetMaxVersion(int nVersion)
 
 bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
 {
-    if (IsCrypted())
+    if (IsCrypted()) {
+//        fprintf(stderr, "EncryptWallet Exited on 1\n");
         return false;
+    }
 
     CKeyingMaterial vMasterKey;
     RandAddSeedPerfmon();
@@ -240,6 +242,9 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
     RAND_bytes(&vMasterKey[0], WALLET_CRYPTO_KEY_SIZE);
 
     CMasterKey kMasterKey;
+    
+    // by Simone: this one was never initialized before, spooky... getting a random value from memory hoping it would be zero...
+    kMasterKey.nDerivationMethod = 0;
 
     RandAddSeedPerfmon();
     kMasterKey.vchSalt.resize(WALLET_CRYPTO_SALT_SIZE);
@@ -259,10 +264,14 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
 
     printf("Encrypting Wallet with an nDeriveIterations of %i\n", kMasterKey.nDeriveIterations);
 
-    if (!crypter.SetKeyFromPassphrase(strWalletPassphrase, kMasterKey.vchSalt, kMasterKey.nDeriveIterations, kMasterKey.nDerivationMethod))
+    if (!crypter.SetKeyFromPassphrase(strWalletPassphrase, kMasterKey.vchSalt, kMasterKey.nDeriveIterations, kMasterKey.nDerivationMethod)) {
+//        fprintf(stderr, "EncryptWallet Exited on 2\n");
         return false;
-    if (!crypter.Encrypt(vMasterKey, kMasterKey.vchCryptedKey))
+    }
+    if (!crypter.Encrypt(vMasterKey, kMasterKey.vchCryptedKey)) {
+//        fprintf(stderr, "EncryptWallet Exited on 3\n");
         return false;
+    }
 
     {
         LOCK(cs_wallet);
@@ -270,8 +279,10 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
         if (fFileBacked)
         {
             pwalletdbEncryption = new CWalletDB(strWalletFile);
-            if (!pwalletdbEncryption->TxnBegin())
+            if (!pwalletdbEncryption->TxnBegin()) {
+//                fprintf(stderr, "EncryptWallet Exited on 4\n");
                 return false;
+            }
             pwalletdbEncryption->WriteMasterKey(nMasterKeyMaxID, kMasterKey);
         }
 

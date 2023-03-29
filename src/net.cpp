@@ -1659,13 +1659,6 @@ void ThreadOpenConnections2(void* parg)
         ProcessOneShot();
 
         vnThreadsRunning[THREAD_OPENCONNECTIONS]--;
-        Sleep(500);
-        vnThreadsRunning[THREAD_OPENCONNECTIONS]++;
-        if (fShutdown)
-            return;
-
-
-        vnThreadsRunning[THREAD_OPENCONNECTIONS]--;
         CSemaphoreGrant grant(*semOutbound);
         vnThreadsRunning[THREAD_OPENCONNECTIONS]++;
         if (fShutdown)
@@ -1741,7 +1734,9 @@ void ThreadOpenConnections2(void* parg)
             break;
         }
         if (addrConnect.IsValid())
-			OpenNetworkConnection(addrConnect, &grant);
+            OpenNetworkConnection(addrConnect, &grant);
+        if (fShutdown)
+            return;
     }
 }
 

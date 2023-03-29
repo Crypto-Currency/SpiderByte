@@ -10,8 +10,6 @@
 #include "serialize.h"
 #include "compat.h"
 
-extern int nConnectTimeout;
-
 #ifdef WIN32
 // In MSVC, this is defined as a macro, undefine it to prevent a compile and link error
 #undef SetPort
@@ -30,6 +28,7 @@ enum Network
 
 extern int nConnectTimeout;
 extern bool fNameLookup;
+extern char nTotalTimeouts;
 
 /** IP address (IPv6, or IPv4 using mapped IPv6 range (::FFFF:0:0/96)) */
 class CNetAddr
