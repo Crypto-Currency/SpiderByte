@@ -197,7 +197,7 @@ QString ClientModel::formatBuildDate() const
 
 QString ClientModel::clientName() const
 {
-    return QString::fromStdString(CLIENT_NAME);
+    return QString::fromStdString(CLIENT_NAME_NEW);
 }
 
 QString ClientModel::formatClientStartupTime() const
