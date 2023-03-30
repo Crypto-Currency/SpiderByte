@@ -32,6 +32,7 @@ static const int PALADIN_CLIENT_VERSION =
                          +       1 * 1;
 
 extern const std::string CLIENT_NAME;
+extern const std::string CLIENT_NAME_NEW;
 extern const std::string CLIENT_BUILD;
 extern const std::string CLIENT_DATE;
 
