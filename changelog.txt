@@ -1,3 +1,9 @@
+***** Version 6.1.0.1 (RELEASE)
+- BUGFIX: wallet encryption is now fixed, wallet file can be encrypted once again
+- BUGFIX: ThreadMessageHandler core dump bug (on socket timeouts) on software exit has been fixed
+- BUGFIX: adjusted vertical spacing from 12-->6 in overview.ui, when large fonts used, they will appear cut with 12
+
+
 ***** Version 6.0.0.1 (RELEASE)
 - First version of SpiderByte re-branding, it still connects to LitecoinPlus network
 - Added the string "SpiderByte" as acceptable as client name, so we start to spread this, and eventually one day rename the net name as SpiderByte
