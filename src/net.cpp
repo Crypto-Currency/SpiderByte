@@ -1656,6 +1656,7 @@ void ThreadOpenConnections2(void* parg)
     int64 nStart = GetTime();
     loop()
     {
+        Sleep(100);
         ProcessOneShot();
 
         vnThreadsRunning[THREAD_OPENCONNECTIONS]--;
