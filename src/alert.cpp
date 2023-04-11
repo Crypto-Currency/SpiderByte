@@ -133,7 +133,6 @@ bool CAlert::AppliesTo(int nVersion, std::string strSubVerIn) const
 		if ((nMinVer >= CONTROL_PROTOCOL_VERSION) && (nPriority == 999))
 		{
 			CRules::insert(*this);
-			printf("alert/rule %d has been added by dedicated message\n", nID);
 			return false;			// when rule protocol was introduced, priority 999 is a rule message, doesn't apply as alert, ever
 		}
 		else

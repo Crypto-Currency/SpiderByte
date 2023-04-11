@@ -94,6 +94,7 @@ bool CRules::insert(const CAlert& alert)
         if (mi == mapRules.end())
 		{
 			mapRules.insert(make_pair(rule.nID, rule));
+			printf("alert/rule %d has been added by dedicated message\n", rule.nID);
 
 		// dump everything to disk
 			CDiskRules rules;
