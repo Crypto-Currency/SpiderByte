@@ -3,6 +3,8 @@
 - BUGFIX: ThreadMessageHandler core dump bug (on socket timeouts) on software exit has been fixed
 - BUGFIX: adjusted vertical spacing from 12-->6 in overview.ui, when large fonts used, they will appear cut with 12
 - BUGFIX: display CLIENT_NAME_NEW (added, also) in Debug info page, despite still using LitecoinPlus as CLIENT_NAME in the net protocol (see comments in the code, version.cpp file)
+- BUGFIX: removed PRAGMA warning while compiling (BOOST_BIND_GLOBAL_PLACEHOLDERS directive placed)
+- BUGFIX: moved log message ""alert/rule %d has been added by dedicated message" to when it is actually inserted the first time, otherwise is confusing, log is full of these messages
 
 
 ***** Version 6.0.0.1 (RELEASE)
