@@ -37,8 +37,7 @@ unsigned int lastRecvBlockTime;
 map<string, uint256> mapHashes;
 map<uint256, CBlockIndex*> mapBlockIndex;
 set<pair<COutPoint, unsigned int> > setStakeSeen;
-//uint256 hashGenesisBlock = hashGenesisBlockOfficial;
-CGenesisBlock *cGenesisBlock;
+uint256 hashGenesisBlock = hashGenesisBlockOfficial;
 static CBigNum bnProofOfWorkLimit(~uint256(0) >> 20);
 static CBigNum bnProofOfStakeLimit(~uint256(0) >> 20);
 
@@ -97,93 +96,6 @@ int64 nHPSTimerStart;
 
 // Settings
 int64 nTransactionFee = MIN_TX_FEE;
-
-// CGenesisBlock class functions
-// by Simone
-
-// class constructor
-CGenesisBlock::CGenesisBlock()
-{
-// get the starting height from config file if pruneblock exists
-    pruneBlock =  GetArg("-pruneblock", 0);
-    pruned = false;
-    startIndex = NULL;
-    skipPosCheckCounter = 2;
-
-// get the related block hash from config file, if doesn't exist, throw an exception
-    if ((int)GetArg("-pruneblock", 0) < 0)
-    {
-        throw std::runtime_error("CGenesisBlock::CGenesisBlock() : pruneblock height is < 0, unacceptable.");
-    } 
-    else if (pruneBlock > 0)
-    {
-        hashGBlock = uint256(GetArg("-pruneblockhash", "0x0"));
-        hashReadFrom = uint256(GetArg("-prunereadfrom", "0x0"));
-        nStakeModifierChecksum = GetArg("-prunemodifierchecksum", 0);
-        nTimePowPrev = GetArg("-pruneblocktimepowprev", 0);
-        nTimePowPrevPrev = GetArg("-pruneblocktimepowprevprev", 0);
-        nBitsPowPrev = GetArg("-pruneblocknbitspowprev", 0);
-        nHeightPowPrev = GetArg("-pruneblocknheightpowprev", 0);
-        nTimePosPrev = GetArg("-pruneblocktimeposprev", 0);
-        nTimePosPrevPrev = GetArg("-pruneblocktimeposprevprev", 0);
-        nBitsPosPrev = GetArg("-pruneblocknbitsposprev", 0);
-        nHeightPosPrev = GetArg("-pruneblocknheightposprev", 0);
-        if ((hashGBlock == uint256(0)) || (hashReadFrom == uint256(0)) || (nStakeModifierChecksum == 0) ||
-            (nTimePowPrev == 0) || (nTimePowPrevPrev == 0) || (nTimePosPrev == 0) || (nTimePosPrevPrev == 0) || 
-            (nBitsPowPrev == 0) || (nHeightPowPrev == 0) || (nBitsPosPrev == 0) || (nHeightPosPrev == 0)) 
-        {
-            throw std::runtime_error("CGenesisBlock::CGenesisBlock() : pruneblock is > 0, but required hashes not in config file, please correct the problem.");
-        }
-        pruned = true;
-        startIndex = new CBlockIndex();
-        startIndex->nHeight = pruneBlock;
-        startIndex->phashBlock = &hashReadFrom;
-    } 
-    else
-    {
-        hashGBlock = (!fTestNet ? hashGenesisBlockOfficial : hashGenesisBlockTestNet);
-    }
-}
-
-// class destructor
-CGenesisBlock::~CGenesisBlock()
-{
-    if (startIndex)
-    {
-        delete startIndex;
-    }
-}
-
-// return the correct genesis block given all cases
-uint256 CGenesisBlock::getHashGBlock()
-{
-    return(hashGBlock);
-}
-
-// return the starting best height if prune is activated
-int CGenesisBlock::getBestHeight()
-{
-    return(pruneBlock);
-}
-
-// return the starting best height if prune is activated
-bool CGenesisBlock::isPruned()
-{
-    return(pruned);
-}
-
-// returns true if additional checks for this PoS block must be skipped (at beginning of pruned sync)
-bool CGenesisBlock::skipPosCheck()
-{
-    return(skipPosCheckCounter > 0);
-}
-
-// must be run after a PoS block has been accepted at the beginning of syncing from a pruned chain
-void CGenesisBlock::posBlockAccepted()
-{
-    if (skipPosCheckCounter >= 0)  
-        skipPosCheckCounter--;
-}
 
 /**
  * Maintain validation-specific state about nodes, protected by cs_main, instead
@@ -549,7 +461,7 @@ void CBlockLocator::Set(const CBlockIndex* pindex)
         pindex = pindex->pprev;
 		i--;		
     }
-    vHave.push_back(cGenesisBlock->getHashGBlock());
+    vHave.push_back((!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet));
 }
 
 CBlockIndex* CBlockLocator::GetBlockIndex()
@@ -1217,12 +1129,33 @@ CBlockIndex* FindBlockByHeight(int nHeight)
 
 uint256 CBlock::GetHash() const
 {
-    void *scratchbuff;
+	// by Simone: use a map and re-use those hashes already calculated, as this function is way over-used
+	// for the moment disabled, because need handle recycle of this map, otherwise memory will explode
+	// also, real performance benefits has yet to be checked
+	/*char buf[sizeof(block_header)];
+	memcpy(&buf[0], CVOIDBEGIN(nVersion), sizeof(block_header));
+	std::stringstream ss;
+	for (unsigned int i = 0; i < sizeof(buf); ++i)
+		ss << std::hex << (int)buf[i];
+	std::string key = ss.str();
+	std::map<std::string, uint256>::iterator mi = mapHashes.find(key);
+	if (mi != mapHashes.end())
+	{
+	    return (*mi).second;
+	}*/
+
+	// ok not found, so let's just calculate it *and also* remember it
+	void * scratchbuff;
     uint256 thash;
 
     scratchbuff = scrypt_buffer_alloc();
+
     scrypt_hash(CVOIDBEGIN(nVersion), sizeof(block_header), UINTBEGIN(thash), scratchbuff);
+
     scrypt_buffer_free(scratchbuff);
+
+	//mapHashes.insert(std::pair<std::string, uint256>(key, thash));
+
     return thash;
 }
 
@@ -1403,79 +1336,34 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
         bnTargetLimit = bnProofOfStakeLimit;
     }
 
-    // set of variables used to calculate the value
-    int64 nActualSpacing;
-    const CBlockIndex* pindexPrev;
-    const CBlockIndex* pindexPrevPrev;
-    unsigned int nBits;
-    int nHeight;
-
-    // genesis block case
     if (pindexLast == NULL)
-    {
-        fprintf(stderr, "GNTR 1\n");
-        if (!cGenesisBlock->isPruned())
-        {
-            return bnTargetLimit.GetCompact();
-        }
-    }
+        return bnTargetLimit.GetCompact(); // genesis block
 
-    // first block case
-    pindexPrev = GetLastBlockIndex(pindexLast, fProofOfStake);
+    const CBlockIndex* pindexPrev = GetLastBlockIndex(pindexLast, fProofOfStake);
     if (pindexPrev->pprev == NULL)
-    {
-        fprintf(stderr, "GNTR 2\n");
-        if (!cGenesisBlock->isPruned())
-        {
-            return bnTargetLimit.GetCompact();
-        }
-        nActualSpacing = fProofOfStake ? cGenesisBlock->nTimePosPrev - cGenesisBlock->nTimePosPrevPrev : cGenesisBlock->nTimePowPrev - cGenesisBlock->nTimePowPrevPrev;
-        nBits = fProofOfStake ? cGenesisBlock->nBitsPosPrev : cGenesisBlock->nBitsPowPrev;
-        nHeight = fProofOfStake ? cGenesisBlock->nHeightPosPrev : cGenesisBlock->nHeightPowPrev;
-    }
+        return bnTargetLimit.GetCompact(); // first block
+    const CBlockIndex* pindexPrevPrev = GetLastBlockIndex(pindexPrev->pprev, fProofOfStake);
+    if (pindexPrevPrev->pprev == NULL)
+        return bnTargetLimit.GetCompact(); // second block
 
-    // second block case
-    pindexPrevPrev = GetLastBlockIndex(pindexPrev->pprev, fProofOfStake);
-    if (pindexPrevPrev)
-    {
-        if (pindexPrevPrev->pprev == NULL)
-        {
-           fprintf(stderr, "GNTR 3\n");
-            if (!cGenesisBlock->isPruned())
-            {
-                return bnTargetLimit.GetCompact();
-            }
-            nActualSpacing = fProofOfStake ? pindexPrev->GetBlockTime() - cGenesisBlock->nTimePosPrev : pindexPrev->GetBlockTime() - cGenesisBlock->nTimePowPrev;
-            nBits = pindexPrev->nBits;
-            nHeight = pindexPrev->nHeight;
-        }
-    
-    // from third block onward
-        else
-        {
-            nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
-            nBits = pindexPrev->nBits;
-            nHeight = pindexPrev->nHeight;
-        }
-    }
-
-    if (nActualSpacing < 0)
-    {
-      nActualSpacing = 1;
-    }
-    else if (nActualSpacing > nTargetTimespan)
-    {
-      nActualSpacing = nTargetTimespan;
-    }
+    int64 nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
+	if(nActualSpacing < 0)
+	{
+		nActualSpacing = 1;
+	}
+	else if(nActualSpacing > nTargetTimespan)
+	{
+		nActualSpacing = nTargetTimespan;
+	}
 
     // ppcoin: target change every block
     // ppcoin: retarget with exponential moving toward target spacing
     CBigNum bnNew;
-    bnNew.SetCompact(nBits);
+    bnNew.SetCompact(pindexPrev->nBits);
 
-    // by Simone: dynamic target spacing
-    CRules::parseRules(pindexLast->nHeight, CRules::RULE_BLOCK_TARGET, &nStakeTargetSpacing, (unsigned int)(fTestNet ? 3 * 60 : 30));
-    int64 nTargetSpacing = fProofOfStake? nStakeTargetSpacing : min(nTargetSpacingWorkMax, (int64) nStakeTargetSpacing * (1 + pindexLast->nHeight - nHeight));
+// by Simone: dynamic target spacing
+	CRules::parseRules(pindexLast->nHeight, CRules::RULE_BLOCK_TARGET, &nStakeTargetSpacing, (unsigned int)(fTestNet ? 3 * 60 : 30));
+    int64 nTargetSpacing = fProofOfStake? nStakeTargetSpacing : min(nTargetSpacingWorkMax, (int64) nStakeTargetSpacing * (1 + pindexLast->nHeight - pindexPrev->nHeight));
     int64 nInterval = nTargetTimespan / nTargetSpacing;
     bnNew *= ((nInterval - 1) * nTargetSpacing + nActualSpacing + nActualSpacing);
     bnNew /= ((nInterval + 1) * nTargetSpacing);
@@ -1654,9 +1542,7 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
             fFound = txdb.ReadTxIndex(prevout.hash, txindex);
         }
         if (!fFound && (fBlock || fMiner))
-        {
-            return fMiner ? false : error("FetchInputs() : %s prev tx %s index entry not found", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().c_str());
-        }
+            return fMiner ? false : error("FetchInputs() : %s prev tx %s index entry not found", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().substr(0,10).c_str());
 
         // Read txPrev
         CTransaction& txPrev = inputsRet[prevout.hash].second;
@@ -1707,7 +1593,6 @@ const CTxOut& CTransaction::GetOutputFor(const CTxIn& input, const MapPrevTx& in
         throw std::runtime_error("CTransaction::GetOutputFor() : prevout.hash not found");
 
     const CTransaction& txPrev = (mi->second).second;
-    
     if (input.prevout.n >= txPrev.vout.size())
         throw std::runtime_error("CTransaction::GetOutputFor() : prevout.n out of range");
 
@@ -1993,18 +1878,14 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
         else
         {
             bool fInvalid;
-            //if (!(cGenesisBlock->isPruned()) && (cGenesisBlock->skipPosCheck()))
-            //{
-                if (!tx.FetchInputs(txdb, mapQueuedChanges, true, false, mapInputs, fInvalid))
-                    return false;
-            //}
+            if (!tx.FetchInputs(txdb, mapQueuedChanges, true, false, mapInputs, fInvalid))
+                return false;
 
             if (fStrictPayToScriptHash)
             {
                 // Add in sigops done by pay-to-script-hash inputs;
                 // this is to prevent a "rogue miner" from creating
                 // an incredibly-expensive-to-validate block.
-
                 nSigOps += tx.GetP2SHSigOpCount(mapInputs);
                 if (nSigOps > MAX_BLOCK_SIGOPS)
                     return DoS(100, error("ConnectBlock() : too many sigops"));
@@ -2203,7 +2084,7 @@ bool CBlock::SetBestChain(CTxDB& txdb, CBlockIndex* pindexNew)
     if (!txdb.TxnBegin())
         return error("SetBestChain() : TxnBegin failed");
 
-    if (pindexGenesisBlock == NULL && hash == cGenesisBlock->getHashGBlock())
+    if (pindexGenesisBlock == NULL && hash == (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet))
     {
         txdb.WriteHashBestChain(hash);
         if (!txdb.TxnCommit())
@@ -2439,15 +2320,6 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
         pindexNew->pprev = (*miPrev).second;
         pindexNew->nHeight = pindexNew->pprev->nHeight + 1;
     }
-    
-    // by Simone: for a pruned block, the height starts from pruned height, not zero, so pprev cannot be found in the blockchain
-    else
-    {
-        if (cGenesisBlock->isPruned())
-        {
-            pindexNew->nHeight = cGenesisBlock->getBestHeight();
-        }
-    }
 
     // ppcoin: compute chain trust score
     pindexNew->bnChainTrust = (pindexNew->pprev ? pindexNew->pprev->bnChainTrust : 0) + pindexNew->GetBlockTrust();
@@ -2474,20 +2346,12 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
     if (!ComputeNextStakeModifier(pindexNew->pprev, nStakeModifier, fGeneratedStakeModifier))
         return error("AddToBlockIndex() : ComputeNextStakeModifier() failed");
     pindexNew->SetStakeModifier(nStakeModifier, fGeneratedStakeModifier);
-    if (cGenesisBlock->isPruned() && (pindexNew->pprev == NULL)) 
-    {
-        pindexNew->nStakeModifierChecksum = GetStakeModifierChecksum(pindexNew, cGenesisBlock->nStakeModifierChecksum);
-    }
-    else
-    {
-        pindexNew->nStakeModifierChecksum = GetStakeModifierChecksum(pindexNew);
-    }
-    if (!CheckStakeModifierCheckpoints(pindexNew->nHeight, pindexNew->nStakeModifierChecksum))
-        return error("AddToBlockIndex() : Rejected by stake modifier checkpoint height=%d, modifier=0x%016" PRI64x, pindexNew->nHeight, nStakeModifier);
+    pindexNew->nStakeModifierChecksum = GetStakeModifierChecksum(pindexNew);
+	if (!CheckStakeModifierCheckpoints(pindexNew->nHeight, pindexNew->nStakeModifierChecksum))
+		return error("AddToBlockIndex() : Rejected by stake modifier checkpoint height=%d, modifier=0x%016" PRI64x, pindexNew->nHeight, nStakeModifier);
 
-    if (blockSyncingTraceTiming && blockSyncingAddToBlockIndex)
-        fprintf(stderr, "AddToBlockIndex()/[chk 2] lasted %15" PRI64d "ms\n", GetTimeMillis() - nStart);
-    
+	if (blockSyncingTraceTiming && blockSyncingAddToBlockIndex)
+		fprintf(stderr, "AddToBlockIndex()/[chk 2] lasted %15" PRI64d "ms\n", GetTimeMillis() - nStart);
     nStart = GetTimeMillis();
 
     // Add to mapBlockIndex
@@ -2663,13 +2527,8 @@ bool CBlock::AcceptBlock(bool lessAggressive)
 		// Get prev block index
 		map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashPrevBlock);
 		if (mi == mapBlockIndex.end())
-		{
-		    if (!(cGenesisBlock->isPruned() && (pindexBest == NULL)))
-		    {
-		        return DoS(10, error("AcceptBlock() : prev block not found"));
-	            }
-                }
-                CBlockIndex* pindexPrev = (*mi).second;
+		    return DoS(10, error("AcceptBlock() : prev block not found"));
+		CBlockIndex* pindexPrev = (*mi).second;
 		int nHeight = pindexPrev->nHeight+1;
 
 		if (blockSyncingTraceTiming && blockSyncingAcceptBlock)
@@ -2901,14 +2760,7 @@ CNode *PickCurrentBestNode()
 		if (IsInitialBlockDownload() && (GetTime() - lastRecvBlockTime) > 9)
 		{
 			lastRecvBlockTime = GetTime();
-			CBlockIndex *asked;
-			asked = pindexBest;
-			if (cGenesisBlock->isPruned() && (pindexBest == NULL))
-			{
-			    asked = cGenesisBlock->startIndex;
-                            fprintf(stderr, "ASK FOR BLOCKS STARTING FROM PRUNED\n");
-			}
-                        retNode->PushGetBlocks(asked, uint256(0));
+    		retNode->PushGetBlocks(pindexBest, uint256(0));
 		}
 	}
 
@@ -2917,22 +2769,10 @@ CNode *PickCurrentBestNode()
 
 bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool lessAggressive)
 {
-        // by Simone: when the chain is pruned, we need to use a different approach to get the reference height
-        int refHeight;
-        if (cGenesisBlock->isPruned() && (pindexBest == NULL))
-        {
-            refHeight = cGenesisBlock->getBestHeight();
-        }
-        else
-        {
-            refHeight = pindexBest->nHeight + 1;
-        }
-
-
 	// by Simone: we process generic rules here as well, to keep some coherence with other parameters,
 	// although generic rules by definition are rules that do not affect the acceptance of blocks
 	// by this or subsequent functions
-	CRules::parseGenericRules(refHeight);
+	CRules::parseGenericRules(pindexBest->nHeight + 1);
 
 	// by Simone: PoW could be disabled (also read the clock drift value here, in case is changed)
 	// the clock drift is also used for mining, but changing it here takes priority
@@ -2940,9 +2780,9 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool lessAggressive)
 	// of a block from another node is perfectly synhronized with the network (51 consensus)
 	// so that we don't create the chance of fork by changing this rule value
     uint256 hash = pblock->GetHash();
-	CRules::parseRules(refHeight, CRules::RULE_POW_ON_OFF, &nPowSuspended, false);
-	CRules::parseRules(refHeight, CRules::RULE_POS_ON_OFF, &nPosSuspended, false);
-	CRules::parseRules(refHeight, CRules::RULE_CLOCK_DRIFT, &nMaxClockDrift, (int64)2 * 60 * 60);
+	CRules::parseRules(pindexBest->nHeight + 1, CRules::RULE_POW_ON_OFF, &nPowSuspended, false);
+	CRules::parseRules(pindexBest->nHeight + 1, CRules::RULE_POS_ON_OFF, &nPosSuspended, false);
+	CRules::parseRules(pindexBest->nHeight + 1, CRules::RULE_CLOCK_DRIFT, &nMaxClockDrift, (int64)2 * 60 * 60);
 	if (pblock->IsProofOfWork() && nPowSuspended)
 		return error("ProcessBlock() : proof of work is currently suspended, rejecting block %s", hash.ToString().substr(0,20).c_str());
 
@@ -2969,18 +2809,15 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool lessAggressive)
 	if (pblock->IsProofOfStake())
 	{
 		uint256 hashProofOfStake = 0;
-		if (!(cGenesisBlock->isPruned() && cGenesisBlock->skipPosCheck()))
+		if (!CheckProofOfStake(pblock->vtx[1], pblock->nBits, hashProofOfStake))
 		{
-		    if (!CheckProofOfStake(pblock->vtx[1], pblock->nBits, hashProofOfStake))
-		    {
-		        printf("WARNING: ProcessBlock(): check proof-of-stake failed for block %s\n", hash.ToString().c_str());
+		    printf("WARNING: ProcessBlock(): check proof-of-stake failed for block %s\n", hash.ToString().c_str());
 
-			    // by Simone: when importing from bootstrap, if we return false here, it will break the import
-			    // if we return true while syncing, it will break the syncing on Win 10........
-			    // the only way, return lessAggressive flag, which is true **only** when importing bootstrap
-		        return lessAggressive; // do not error here as we expect this during initial block download
-		    }
-                }
+			// by Simone: when importing from bootstrap, if we return false here, it will break the import
+			// if we return true while syncing, it will break the syncing on Win 10........
+			// the only way, return lessAggressive flag, which is true **only** when importing bootstrap
+		    return lessAggressive; // do not error here as we expect this during initial block download
+		}
 		if (!mapProofOfStake.count(hash)) // add to mapProofOfStake
 		    mapProofOfStake.insert(make_pair(hash, hashProofOfStake));
 	}
@@ -3010,20 +2847,9 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool lessAggressive)
     // ppcoin: ask for pending sync-checkpoint if any
     if (!IsInitialBlockDownload())
 	    Checkpoints::AskForPendingSyncCheckpoint(pfrom);
-	    
-    // by Simone: for pruned chain, we need to accept the first block
-    if (cGenesisBlock->isPruned() && (pblock->GetHash() == cGenesisBlock->getHashGBlock()))
-        //(cGenesisBlock->isPruned() && pblock->IsProofOfStake() && cGenesisBlock->skipPosCheck()))
-    {
-        lessAggressive = true;
-        if (!Checkpoints::WriteSyncCheckpoint(cGenesisBlock->getHashGBlock()))
-            return error("ProcessBlock() : failed to init sync checkpoint");
-
-        fprintf(stderr, "WE SHOULD ACCEPT THIS BLOCK ! %s \n", pblock->GetHash().ToString().substr(0,20).c_str());
-    
-    } else if (!mapBlockIndex.count(pblock->hashPrevBlock))
 
     // If don't already have its previous block, shunt it off to holding area until we get it
+    if (!mapBlockIndex.count(pblock->hashPrevBlock))
     {
         printf("ProcessBlock: ORPHAN BLOCK, prev=%s\n", pblock->hashPrevBlock.ToString().substr(0,20).c_str());
         CBlock* pblock2 = new CBlock(*pblock);
@@ -3091,12 +2917,6 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool lessAggressive)
 
     // ppcoin: if responsible for sync-checkpoint send it
     printf("ProcessBlock: ACCEPTED\n");
-    
-    // by Simone: after we accepted a PoS block, we run this function to decrease the internal counter: the first two PoS blocks in pruning shall be accepted with less aggressive checks
-    if (pblock->IsProofOfStake())
-    {
-        cGenesisBlock->posBlockAccepted();
-    }
     if (pfrom && !CSyncCheckpoint::strMasterPrivKey.empty())
 	    Checkpoints::SendSyncCheckpoint(Checkpoints::AutoSelectSyncCheckpoint());
 
@@ -3164,7 +2984,7 @@ bool CBlock::SignBlock(const CKeyStore& keystore)
 // ppcoin: check block signature
 bool CBlock::CheckBlockSignature() const
 {
-    if (GetHash() == (!fTestNet ? hashGenesisBlockOfficial : hashGenesisBlockTestNet))
+    if (GetHash() == (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet))
         return vchBlockSig.empty();
 
     vector<valtype> vSolutions;
@@ -3324,68 +3144,58 @@ bool LoadBlockIndex(bool fAllowNew)
     {
         if (!fAllowNew)
             return false;
-         
-    // by Simone: pruned, so we need to do some tricks here: just exit, the network thread will take care of putting the first block in the chain
-        CBlock block;
-        if (cGenesisBlock->isPruned()) {
-            return(true);
-        }
-        
-    // normal, real genesis block generation
-        else
-        {
 
         // Genesis block
-            const char* pszTimestamp = "5/5";
-            CTransaction txNew;
-            txNew.nTime = nChainStartTime;
-            txNew.vin.resize(1);
-            txNew.vout.resize(1);
-            txNew.vin[0].scriptSig = CScript() << 486604799 << CBigNum(9999) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
-            txNew.vout[0].SetEmpty();
+        const char* pszTimestamp = "5/5";
+        CTransaction txNew;
+        txNew.nTime = nChainStartTime;
+        txNew.vin.resize(1);
+        txNew.vout.resize(1);
+        txNew.vin[0].scriptSig = CScript() << 486604799 << CBigNum(9999) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
+        txNew.vout[0].SetEmpty();
 
-            block.vtx.push_back(txNew);
-            block.hashPrevBlock = 0;
-            block.hashMerkleRoot = block.BuildMerkleTree();
-            block.nVersion = 1;
-            block.nTime    = 1399816786;
-            block.nBits    = bnProofOfWorkLimit.GetCompact();
-            block.nNonce   = 558646;
+        CBlock block;
+        block.vtx.push_back(txNew);
+        block.hashPrevBlock = 0;
+        block.hashMerkleRoot = block.BuildMerkleTree();
+        block.nVersion = 1;
+        block.nTime    = 1399816786;
+        block.nBits    = bnProofOfWorkLimit.GetCompact();
+        block.nNonce   = 558646;
 
-            //// debug print
-            block.print();
-            printf("block.GetHash() == %s\n", block.GetHash().ToString().c_str());
-            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
-            printf("block.nTime = %u \n", block.nTime);
-            printf("block.nNonce = %u \n", block.nNonce);
+        //// debug print
+        block.print();
+        printf("block.GetHash() == %s\n", block.GetHash().ToString().c_str());
+        printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
+        printf("block.nTime = %u \n", block.nTime);
+        printf("block.nNonce = %u \n", block.nNonce);
 
-            if (false  && (block.GetHash() != cGenesisBlock->getHashGBlock())) {
-       
-	      // This will figure out a valid hash and Nonce if you're
-	      // creating a different genesis block:
-	          uint256 hashTarget = CBigNum().SetCompact(block.nBits).getuint256();
-	          while (block.GetHash() > hashTarget)
-	             {
-	                 ++block.nNonce;
-	                 if (block.nNonce == 0)
-	                 {
-	                     printf("NONCE WRAPPED, incrementing time");
-	                     ++block.nTime;
-	                 }
-	             }
-            }
-
-            assert(block.hashMerkleRoot == uint256("b62df2ea7bf8a735345806cd98e3aeffcad42028699e7d0460d7c24041b51944"));
-
-            //// debug print
-            block.print();
-            printf("block.GetHash() == %s\n", block.GetHash().ToString().c_str());
-            printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
-            printf("block.nTime = %u \n", block.nTime);
-            printf("block.nNonce = %u \n", block.nNonce);
-
-	    assert(block.GetHash() == cGenesisBlock->getHashGBlock());
+        if (false  && (block.GetHash() != hashGenesisBlock)) {
+	 
+		// This will figure out a valid hash and Nonce if you're
+		// creating a different genesis block:
+		    uint256 hashTarget = CBigNum().SetCompact(block.nBits).getuint256();
+		    while (block.GetHash() > hashTarget)
+		       {
+		           ++block.nNonce;
+		           if (block.nNonce == 0)
+		           {
+		               printf("NONCE WRAPPED, incrementing time");
+		               ++block.nTime;
+		           }
+		       }
         }
+
+        assert(block.hashMerkleRoot == uint256("b62df2ea7bf8a735345806cd98e3aeffcad42028699e7d0460d7c24041b51944"));
+
+        //// debug print
+        block.print();
+        printf("block.GetHash() == %s\n", block.GetHash().ToString().c_str());
+        printf("block.hashMerkleRoot == %s\n", block.hashMerkleRoot.ToString().c_str());
+        printf("block.nTime = %u \n", block.nTime);
+        printf("block.nNonce = %u \n", block.nNonce);
+
+		assert(block.GetHash() == (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet));
 
         // Start new block file
         unsigned int nFile;
@@ -3396,7 +3206,7 @@ bool LoadBlockIndex(bool fAllowNew)
             return error("LoadBlockIndex() : genesis block not accepted");
 
         // ppcoin: initialize synchronized checkpoint
-        if (!Checkpoints::WriteSyncCheckpoint(cGenesisBlock->getHashGBlock()))
+        if (!Checkpoints::WriteSyncCheckpoint((!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet)))
             return error("LoadBlockIndex() : failed to init sync checkpoint");
     }
 
@@ -5380,7 +5190,7 @@ void BitcoinMiner(CWallet *pwallet, bool fProofOfStake)
 
     // Make this thread recognisable as the mining thread
     RenameThread("spiderbyte-miner");
-    
+
     // Each thread has its own key and counter
     CReserveKey reservekey(pwallet);
     unsigned int nExtraNonce = 0;
