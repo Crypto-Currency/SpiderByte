@@ -249,20 +249,32 @@ Value createrawtransaction(const Array& params, bool fHelp)
     set<CBitcoinAddress> setAddress;
     BOOST_FOREACH(const Pair& s, sendTo)
     {
-        CBitcoinAddress address(s.name_);
-        if (!address.IsValid())
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid SpiderByte address: ")+s.name_);
+    // By Simone/Jonathan: added "data" capabilities from BitcoinSCrypt
+      if (s.name_ == "data")
+      {
+        std::string temp=s.value_.get_str();
+        std::vector<unsigned char> data(temp.begin(), temp.end());
 
-        if (setAddress.count(address))
-            throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+s.name_);
-        setAddress.insert(address);
-
-        CScript scriptPubKey;
-        scriptPubKey.SetDestination(address.Get());
-        int64 nAmount = AmountFromValue(s.value_);
-
-        CTxOut out(nAmount, scriptPubKey);
+        CTxOut out(0, CScript() << OP_RETURN << data);
         rawTx.vout.push_back(out);
+      }
+      else
+      {
+        CBitcoinAddress address(s.name_);
+          if (!address.IsValid())
+              throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid SpiderByte address: ")+s.name_);
+
+          if (setAddress.count(address))
+              throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+s.name_);
+          setAddress.insert(address);
+
+          CScript scriptPubKey;
+          scriptPubKey.SetDestination(address.Get());
+          int64 nAmount = AmountFromValue(s.value_);
+
+          CTxOut out(nAmount, scriptPubKey);
+          rawTx.vout.push_back(out);
+        }
     }
 
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
