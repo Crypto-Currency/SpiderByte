@@ -1,3 +1,10 @@
+***** Version 7.0.0.1 (RELEASE)
+- BUGFIX: can now compile on Ubuntu 24.04
+- Added "data" to createrawtransaction CLI call, to be able to inject a OP_RETURN type TX
+- Removed the constrain in main.cpp tx.IsStandard(), so some mempool will start to accept and mine non-standard TXes
+- Upped version to 7.0.0.1 as this is a major behavior change
+
+
 ***** Version 6.1.0.1 (RELEASE)
 - BUGFIX: wallet encryption is now fixed, wallet file can be encrypted once again
 - BUGFIX: ThreadMessageHandler core dump bug (on socket timeouts) on software exit has been fixed
