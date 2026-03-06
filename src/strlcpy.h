@@ -19,12 +19,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if (__GLIBC__ < 2) || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 39)
+
 /*
  * Copy src to string dst of size siz.  At most siz-1 characters
  * will be copied.  Always NUL terminates (unless siz == 0).
  * Returns strlen(src); if retval >= siz, truncation occurred.
  */
-inline size_t __strlcpy(char *dst, const char *src, size_t siz)
+inline size_t strlcpy(char *dst, const char *src, size_t siz)
 {
     char *d = dst;
     const char *s = src;
@@ -59,7 +61,7 @@ inline size_t __strlcpy(char *dst, const char *src, size_t siz)
  * Returns strlen(src) + MIN(siz, strlen(initial dst)).
  * If retval >= siz, truncation occurred.
  */
-inline size_t __strlcat(char *dst, const char *src, size_t siz)
+inline size_t strlcat(char *dst, const char *src, size_t siz)
 {
     char *d = dst;
     const char *s = src;
@@ -87,4 +89,6 @@ inline size_t __strlcat(char *dst, const char *src, size_t siz)
 
     return(dlen + (s - src)); /* count does not include NUL */
 }
+#endif
+
 #endif
